@@ -6,7 +6,7 @@ mainly refer `bench.go` from `nats.go`(https://github.com/nats-io/nats.go/blob/m
 
 ## TODO
 - [ ] support dumping stats periodly
-
+- [ ] support benchmark test for nats streaming server
 
 
 ## Links
