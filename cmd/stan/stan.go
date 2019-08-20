@@ -11,20 +11,19 @@ import (
 
 // New creates a new `stan` subcommand
 func New() *cobra.Command {
+	var conf config.StanConfig
+
 	c := &cobra.Command{
 		Use:   "stan",
 		Short: "benchmark nats-streaming server",
-		RunE:  benchStan,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return bench.RunStanBench(conf)
+		},
 	}
 
+	setupFlags(c, &conf)
+
 	return c
-}
-
-func benchStan(cmd *cobra.Command, args []string) error {
-	var conf config.StanConfig
-	setupFlags(cmd, &conf)
-
-	return bench.RunStanBench(conf)
 }
 
 // setupFlags sets flags for comand line
@@ -32,16 +31,29 @@ func setupFlags(cmd *cobra.Command, conf *config.StanConfig) {
 	fs := cmd.Flags()
 
 	// TODO: add more configurations
-	fs.Float64VarP(&conf.Rate, "rate", "r", 1, "msg publish rate per topic.")
-	fs.IntVar(&conf.SubjectNumber, "sn", 10, "topic number")
-	fs.IntVar(&conf.PubNumber, "np", 1, "publisher number per topic")
-	fs.IntVar(&conf.SubNumber, "ns", 1, "subscriber number per topic")
-	fs.IntVarP(&conf.MsgNumber, "count", "n", -1, "msg number per channel")
-	fs.IntVar(&conf.MsgSize, "ms", 8192, "msg size bytes (8192)")
-	fs.DurationVarP(&conf.Duration, "duration", "d", 60*time.Second, "running duration")
-	fs.DurationVar(&conf.ReportInterval, "ri", 60*time.Second, "report interval")
-	fs.BoolVarP(&conf.Async, "async", "a", false, "true for async mode")
-	fs.StringVar(&conf.SubjectPrefix, "sp", "test", "subject prefix. `test` is used by default")
+	fs.StringVarP(&conf.URL, "server", "s", "nats://localhost:4222", "nats server.")
+	fs.DurationVarP(&conf.Duration, "duration", "d", 60*time.Second, "running duration.")
+	fs.Float64VarP(&conf.Rate, "rate", "r", 1, "msg publish rate per subject. If set to 0, means no rate limit.")
+	fs.StringVarP(&conf.Cluster, "cluster", "c", "nss-cluster", "stan cluster.")
 
-	cmd.MarkFlagRequired("duration")
+	fs.DurationVar(&conf.PubAckWait, "pat", time.Second*20, "publish ack timeout.")
+	fs.IntVar(&conf.PubAckMaxInflight, "mpa", 1000, "max publish ack In flight.")
+
+	fs.IntVar(&conf.PingInterval, "pi", 5, "ping interval.")
+	fs.IntVar(&conf.PingMax, "pm", 10, "ping max times without ack.")
+
+	fs.DurationVar(&conf.NatsConnectTimeout, "nct", time.Second*5, "nats connection timeout")
+	fs.DurationVar(&conf.StanConnectTimeout, "sct", time.Second*30, "stan connection timeout")
+
+	fs.StringVar(&conf.SubjectPrefix, "sp", "test", "subject prefix.")
+	fs.IntVar(&conf.SubjectNum, "sn", 1, "subject number.")
+	fs.IntVar(&conf.PubNum, "np", 1, "publisher number per subject.")
+	fs.IntVar(&conf.SubNum, "ns", 0, "subscriber number per subject.")
+	fs.IntVar(&conf.MsgSize, "ms", 8192, "msg size bytes (8192)")
+	fs.IntVarP(&conf.MsgNumber, "count", "n", -1, "msg number per subject. If duration is set, it will be ignored")
+	fs.DurationVar(&conf.ReportInterval, "ri", 1*time.Minute, "report interval.")
+	fs.BoolVarP(&conf.PubAsync, "async", "a", false, "true for async mode.")
+
+	// cmd.MarkFlagRequired("duration")
+	// cmd.MarkFlagRequired("cluster")
 }

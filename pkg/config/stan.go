@@ -6,8 +6,8 @@ import "time"
 type StanConfig struct {
 	BaseConfig
 
-	Cluster string
-
-	ConnTimeout time.Duration
-	StanTimeout time.Duration
+	Cluster            string
+	StanConnectTimeout time.Duration
+	PubAckWait         time.Duration
+	PubAckMaxInflight  int
 }

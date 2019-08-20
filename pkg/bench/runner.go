@@ -1,16 +1,23 @@
 package bench
 
-import "time"
+import (
+	"context"
+	"log"
+	"time"
+)
 
+// TODO: add context support for task
 type Task func()
 
+// TODO: use golang/x/time/rate
 type RunnerOpts struct {
-	Task      Task
-	Total     int
-	Frequency float64 // number of requests sent in one second
+	Task  Task
+	Total int
+	Rate  float64 // number of Task should be performed in one second. If zero, means no limit.
 }
 
 type runner struct {
+	ctx  context.Context
 	opts RunnerOpts
 
 	done      int
@@ -18,22 +25,23 @@ type runner struct {
 	isRunning bool
 }
 
-func NewRunner(opts RunnerOpts) Runner {
-	interval := time.Duration(float64(time.Second) / opts.Frequency)
+func NewRunner(ctx context.Context, opts RunnerOpts) Runner {
+	var interval time.Duration
+	// no limit is set for zero or negative value
+	if opts.Rate <= 0 {
+		interval = 0
+	} else {
+		interval = time.Duration(float64(time.Second) / opts.Rate)
+	}
+	if opts.Total <= 0 {
+		opts.Total = 0
+	}
 
 	return &runner{
+		ctx:      ctx,
 		opts:     opts,
 		interval: interval,
 	}
-}
-
-func (r *runner) Stop() {
-	if !r.isRunning {
-		panic("not running")
-	}
-
-	// TODO
-
 }
 
 func (r *runner) Run() {
@@ -42,12 +50,31 @@ func (r *runner) Run() {
 	}
 	r.isRunning = true
 
-	for r.done = 0; r.done < r.opts.Total; r.done++ {
-		used := elapsed(r.opts.Task)
-		if used < r.interval {
-			time.Sleep(r.interval - used)
+	for r.shouldRun() {
+		select {
+		case <-r.ctx.Done():
+			log.Printf("runner exit")
+			return
+		default:
+			used := elapsed(r.opts.Task)
+			if used < r.interval {
+				time.Sleep(r.interval - used)
+			}
 		}
 	}
+}
+
+func (r *runner) shouldRun() bool {
+	if r.opts.Total == 0 {
+		return true
+	}
+
+	if r.done < r.opts.Total {
+		r.done++
+		return true
+	}
+
+	return false
 }
 
 func elapsed(run func()) time.Duration {
