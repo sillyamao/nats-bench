@@ -48,7 +48,7 @@ func setupFlags(cmd *cobra.Command, conf *config.StanConfig) {
 	fs.StringVar(&conf.SubjectPrefix, "sp", "test", "subject prefix.")
 	fs.IntVar(&conf.SubjectNum, "sn", 1, "subject number.")
 	fs.IntVar(&conf.PubNum, "np", 1, "publisher number per subject.")
-	fs.IntVar(&conf.SubNum, "ns", 0, "subscriber number per subject.")
+	fs.IntVar(&conf.SubNum, "ns", 1, "subscriber number per subject.")
 	fs.IntVar(&conf.MsgSize, "ms", 8192, "msg size bytes (8192)")
 	fs.IntVarP(&conf.MsgNumber, "count", "n", -1, "msg number per subject. If duration is set, it will be ignored")
 	fs.DurationVar(&conf.ReportInterval, "ri", 1*time.Minute, "report interval.")

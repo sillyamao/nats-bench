@@ -3,7 +3,6 @@ package bench
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/nats-io/stan.go"
 
 	"github.com/shohi/nats-bench/pkg/config"
+	"github.com/shohi/nats-bench/pkg/metrics"
 	"github.com/shohi/nats-bench/pkg/report"
 )
 
@@ -96,7 +96,6 @@ func (b *stanBench) initRunner() {
 	b.initSubRunner()
 }
 
-// TODO
 func (b *stanBench) initPubRunner() {
 	b.pubers = make([]Runner, 0, b.conf.PubNum)
 	for k := 0; k < b.conf.PubNum; k++ {
@@ -108,7 +107,6 @@ func (b *stanBench) initPubRunner() {
 	return
 }
 
-// TODO
 func (b *stanBench) newPubRunner(subjectIndex int) Runner {
 	conn := b.createConnect()
 
@@ -154,10 +152,13 @@ func (b *stanBench) newPubTask(conn stan.Conn, subjectIndex int) Task {
 			err = conn.Publish(subject, b.data)
 		}
 
-		b.reporter.Report(err,
-			subject,
-			len(b.data),
-			time.Since(start))
+		b.reporter.Report(metrics.Txn{
+			Name:  subject,
+			Err:   err,
+			Size:  int64(len(b.data)),
+			Start: start,
+			End:   time.Now(),
+		})
 	}
 }
 
@@ -180,12 +181,20 @@ func (b *stanBench) newSubTask(conn stan.Conn, subjectIndex int) Task {
 		start := time.Now()
 		select {
 		case <-b.ctx.Done():
-			return
+			msgCh <- nil
 		case m := <-msgCh:
-			b.reporter.Report(nil,
-				subject,
-				len(m.Data),
-				time.Since(start))
+			// if context is done, exit task.
+			if m == nil {
+				return
+			}
+
+			b.reporter.Report(metrics.Txn{
+				Name:  subject,
+				Err:   nil,
+				Size:  int64(len(m.Data)),
+				Start: start,
+				End:   time.Now(),
+			})
 		}
 	}
 }
@@ -206,7 +215,6 @@ func (b *stanBench) run() error {
 	fmt.Printf("running complete at:%v\n\n\tElapsed:%v\n", time.Now(), b.end.Sub(b.start))
 
 	b.wg.Wait()
-	// FIXME: reporter not work
 	fmt.Printf("Report:%v\n", b.reporter.GetReport())
 
 	return nil
@@ -225,15 +233,12 @@ func (b *stanBench) invokeTaskRunner() {
 		count++
 		b.startGoroutine(r.Run)
 	}
-
-	log.Printf("runner number: %v", count)
 }
 
 func (b *stanBench) startGoroutine(f func()) {
 	b.wg.Add(1)
 	go func() {
 		f()
-		log.Printf("runner done")
 		b.wg.Done()
 	}()
 }

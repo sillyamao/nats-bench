@@ -2,11 +2,9 @@ package bench
 
 import (
 	"context"
-	"log"
 	"time"
 )
 
-// TODO: add context support for task
 type Task func()
 
 // TODO: use golang/x/time/rate
@@ -53,7 +51,6 @@ func (r *runner) Run() {
 	for r.shouldRun() {
 		select {
 		case <-r.ctx.Done():
-			log.Printf("runner exit")
 			return
 		default:
 			used := elapsed(r.opts.Task)
