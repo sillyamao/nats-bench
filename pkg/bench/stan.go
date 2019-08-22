@@ -3,6 +3,7 @@ package bench
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -43,7 +44,7 @@ func newStanBench(conf config.StanConfig) *stanBench {
 	var ctx context.Context
 	var cancel context.CancelFunc
 
-	// correct duration based on MsgNumber
+	// TODO: correct duration based on MsgNumber
 	if conf.Duration == 0 {
 		ctx, cancel = context.WithCancel(context.Background())
 	} else {
@@ -111,9 +112,10 @@ func (b *stanBench) newPubRunner(subjectIndex int) Runner {
 	conn := b.createConnect()
 
 	return NewRunner(b.ctx, RunnerOpts{
-		Task:  b.newPubTask(conn, subjectIndex),
-		Total: int(b.conf.MsgNumber) / int(b.conf.PubNum),
-		Rate:  b.conf.Rate,
+		Task:   b.newPubTask(conn, subjectIndex),
+		Total:  int(b.conf.MsgNumber) / int(b.conf.PubNum),
+		Rate:   b.conf.Rate,
+		OnDone: func() { _ = conn.Close() },
 	})
 
 }
@@ -134,8 +136,9 @@ func (b *stanBench) newSubRunner(subjectIndex int) Runner {
 	conn := b.createConnect()
 
 	return NewRunner(b.ctx, RunnerOpts{
-		Task:  b.newSubTask(conn, subjectIndex),
-		Total: 1,
+		Task:   b.newSubTask(conn, subjectIndex),
+		Total:  1,
+		OnDone: func() { _ = conn.Close() },
 	})
 
 }
@@ -155,7 +158,7 @@ func (b *stanBench) newPubTask(conn stan.Conn, subjectIndex int) Task {
 		b.reporter.Report(metrics.Txn{
 			Name:  subject,
 			Err:   err,
-			Size:  int64(len(b.data)),
+			Size:  float64(len(b.data)),
 			Start: start,
 			End:   time.Now(),
 		})
@@ -178,7 +181,7 @@ func (b *stanBench) newSubTask(conn stan.Conn, subjectIndex int) Task {
 	}
 
 	return func() {
-		start := time.Now()
+		// start := time.Now()
 		select {
 		case <-b.ctx.Done():
 			msgCh <- nil
@@ -188,34 +191,35 @@ func (b *stanBench) newSubTask(conn stan.Conn, subjectIndex int) Task {
 				return
 			}
 
-			b.reporter.Report(metrics.Txn{
-				Name:  subject,
-				Err:   nil,
-				Size:  int64(len(m.Data)),
-				Start: start,
-				End:   time.Now(),
-			})
+			/*
+				// NOTE: not report subscriber's stat.
+				b.reporter.Report(metrics.Txn{
+					Name:  subject,
+					Err:   nil,
+					Size:  float64(len(m.Data)),
+					Start: start,
+					End:   time.Now(),
+				})
+			*/
 		}
 	}
 }
 
 func (b *stanBench) run() error {
 	b.start = time.Now()
-	fmt.Printf("start running with:%v, at:%v\n", b.conf, b.start)
+	log.Printf("start running with: [%+v]\n", b.conf)
 
 	b.invokeTaskRunner()
 	b.reporter.Start()
-
-	fmt.Println("waiting for complete")
 
 	<-time.After(b.conf.Duration)
 
 	b.cancel()
 	b.end = time.Now()
-	fmt.Printf("running complete at:%v\n\n\tElapsed:%v\n", time.Now(), b.end.Sub(b.start))
+	log.Printf("completed. Elapsed: %v\n", b.end.Sub(b.start))
 
 	b.wg.Wait()
-	fmt.Printf("Report:%v\n", b.reporter.GetReport())
+	log.Printf("Report:\n\n%v\n", b.reporter.GetReport())
 
 	return nil
 }

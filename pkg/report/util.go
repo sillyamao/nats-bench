@@ -17,6 +17,6 @@ func max(l, r time.Duration) time.Duration {
 	return l
 }
 
-func weightedMedian(t1 time.Duration, c1 int, t2 time.Duration, c2 int) time.Duration {
+func weightedMedian(t1 time.Duration, c1 int64, t2 time.Duration, c2 int64) time.Duration {
 	return (t1*time.Duration(c1) + t2*time.Duration(c2)) / time.Duration(c1+c2)
 }

@@ -9,9 +9,10 @@ type Task func()
 
 // TODO: use golang/x/time/rate
 type RunnerOpts struct {
-	Task  Task
-	Total int
-	Rate  float64 // number of Task should be performed in one second. If zero, means no limit.
+	Task   Task
+	OnDone Task // Do some cleanup when runner is done.
+	Total  int
+	Rate   float64 // number of Task should be performed in one second. If zero, means no limit.
 }
 
 type runner struct {
@@ -48,16 +49,21 @@ func (r *runner) Run() {
 	}
 	r.isRunning = true
 
+out:
 	for r.shouldRun() {
 		select {
 		case <-r.ctx.Done():
-			return
+			break out
 		default:
 			used := elapsed(r.opts.Task)
 			if used < r.interval {
 				time.Sleep(r.interval - used)
 			}
 		}
+	}
+
+	if r.opts.OnDone != nil {
+		r.opts.OnDone()
 	}
 }
 
